@@ -36,7 +36,7 @@ export const createOrder = async (req: Request, res: Response) => {
       items
     );
 
-    res.status(201).json({ message: 'Order created', ...orderResult });
+    res.status(201).json({ message: 'New Order created', ...orderResult });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
