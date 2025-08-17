@@ -103,8 +103,8 @@ export const loginEmailOnly = async (req: Request, res: Response) => {
   try {
     const result = await loginEmailOnlyService(email);
     res.status(200).json(result);
-  } catch (err) {
-    res.status(500).json({ error: err });
+  } catch (err:any) {
+    res.status(500).json({ error: err.message || "Something went wrong" });
   }
 };
 

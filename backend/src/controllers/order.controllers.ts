@@ -29,14 +29,14 @@ export const createOrder = async (req: Request, res: Response) => {
       res.status(400).json({ error: 'Missing required order fields' });
     }
 
-    const orderId = await OrderService.createOrder(
+    const orderResult = await OrderService.createOrder(
       customerInfo,
       addressInfo,
       paymentInfo,
       items
     );
 
-    res.status(201).json({ message: 'Order created', orderId });
+    res.status(201).json({ message: 'Order created', ...orderResult });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -84,17 +84,11 @@ export const getOrderById = async (  req: Request & { user?: JwtPayload }, res: 
     if (!user || !user.email) {
       res.status(401).json({ error: "Unauthorized" });
     }
-console.log('User email:', user.email);
     const order = await OrderService.getOrderByUser(orderId, user.email);
 
     if (!order) {
       res.status(404).json({ error: 'Order not found' });
     }
-
-    // if ( order.user_id !== user.id) {
-    //   res.status(403).json({ error: 'Access denied' });
-    // }
-
     res.status(200).json(order);
   } catch (error: any) {
     res.status(500).json({ error: error.message });

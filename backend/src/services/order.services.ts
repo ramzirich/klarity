@@ -1,5 +1,6 @@
 import { db } from '../db';
-import { FieldPacket, OkPacketParams, ResultSetHeader, RowDataPacket } from 'mysql2';
+import { FieldPacket, RowDataPacket } from 'mysql2';
+import { Resend } from 'resend';
 
 type CreateOrderParams = {
   customerInfo: {
@@ -65,8 +66,10 @@ export const OrderService = {
   
       const orderId = orderResult.insertId;
       let subtotal = 0;
+      let totalQuantity = 0;
   
       // Step 2: Insert order items and calculate subtotal
+      const productsNameQuantity: Record<number, { name: string; quantity: number }> = {};
       for (const item of items) {
         const [productRows] = await conn.execute<RowDataPacket[]>(
           `SELECT price, stock, name FROM product WHERE id = ?`,
@@ -85,6 +88,11 @@ export const OrderService = {
         const unitPrice = parseFloat(productRows[0].price);
         const totalPrice = unitPrice * item.quantity;
         subtotal += totalPrice;
+        totalQuantity += item.quantity; 
+        productsNameQuantity[item.product_id] = {
+          name: product.name,
+          quantity: item.quantity,
+        };
   
         await conn.execute(
           `INSERT INTO order_item (order_id, product_id, quantity, unit_price)
@@ -93,8 +101,11 @@ export const OrderService = {
         );
       }
   
-      const grandTotal = subtotal * 0.9;
-  
+      let grandTotal = subtotal;
+      if (customerInfo.customer_email && customerInfo.customer_email.trim() !== "") {
+        grandTotal = subtotal * 0.9;
+      }
+        
       // Step 3: Insert address
       await conn.execute(
         `INSERT INTO order_address (order_id, city, state, address_description)
@@ -122,7 +133,30 @@ export const OrderService = {
       );
   
       await conn.commit();
-      return { orderId };
+    
+  const resend = new Resend(process.env.SENDGRID_API_KEY);
+  const itemsHtml = Object.values(productsNameQuantity)
+  .map(i => `<li>${i.name} - Quantity: ${i.quantity}</li>`)
+  .join("");
+  await resend.emails.send({
+    from: 'onboarding@resend.dev',
+    to: 'ramziriche96@gmail.com',
+    subject: `New Order #${orderId}`,
+    html: `
+      <h2>New Order Received</h2>
+      <p><strong>Order ID:</strong> ${orderId}</p>
+      <p><strong>Customer:</strong> ${customerInfo.first_name} ${customerInfo.last_name}</p>
+      <p><strong>Email:</strong> ${customerInfo.customer_email || "N/A"}</p>
+      <p><strong>Phone Number:</strong> ${customerInfo.phone_number}</p>
+         <p><strong>Items:</strong></p>
+    <ul>
+      ${itemsHtml}
+    </ul>
+      <p><strong>Total Quantity:</strong> ${totalQuantity}</p>
+      <p><strong>Total:</strong> $${grandTotal.toFixed(2)}</p>
+    `
+  }).catch((err) => console.error("Failed to send email:", err));
+  return { orderId, totalQuantity , grandTotal }
     } catch (error) {
       await conn.rollback();
       throw error;
@@ -208,23 +242,6 @@ export const OrderService = {
     await db.query('DELETE FROM orders WHERE id = ?', [orderId]);
   },
 };
-
-
-// export const createOrder = async (orderData: any) => {
-//   const {
-//     email, fullname, phoneNumber, address,
-//     city, region, paymentMethod, paymentId
-//   } = orderData;
-
-//   const [result]: any = await db.query(
-//     `INSERT INTO orderInfo 
-//      (email, fullname, phoneNumber, address, city, region, paymentMethod, paymentId) 
-//      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-//     [email, fullname, phoneNumber, address, city, region, paymentMethod, paymentId]
-//   );
-
-//   return { id: result.insertId, ...orderData };
-// };
 
 export const getAllOrders = async () => {
   const [rows]: any = await db.query('SELECT * FROM orderInfo');
