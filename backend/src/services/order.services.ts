@@ -140,7 +140,7 @@ export const OrderService = {
   .join("");
   await resend.emails.send({
     from: 'onboarding@resend.dev',
-    to: 'ramziriche96@gmail.com',
+    to: 'karenhassoun101@outlook.com',
     subject: `New Order #${orderId}`,
     html: `
       <h2>New Order Received</h2>
